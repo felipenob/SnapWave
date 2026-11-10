@@ -6,7 +6,7 @@
 ![100% Offline](https://img.shields.io/badge/Privacy-100%25%20Offline-10b981)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-0284c7)
 ![ASR Models](https://img.shields.io/badge/ASR-Whisper%20%7C%20NVIDIA%20Parakeet%20%7C%20Wav2Vec2-76b900)
-![License](https://img.shields.io/badge/License-MIT-blue)
+![License](https://img.shields.io/badge/License-AGPL%203.0-blue)
 
 **SnapWave** is a fast, standalone, **100% offline** desktop application for reviewing, cleaning, aligning, and transcribing multi-speaker conversational audio datasets (`.wav` + `.srt`), with one-click export to **ELAN (`.eaf`)**.
 
@@ -198,4 +198,4 @@ python tests/test_server.py
 
 ## 📄 License
 
-Distributed under the **MIT License**. Free for academic, research, and commercial use.
+Distributed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. See the [LICENSE](LICENSE) file for full details.
