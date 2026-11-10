@@ -1,0 +1,16 @@
+# Multi-Speaker Transcript Review Interface - Dependencies
+
+# Core audio & signal processing
+numpy>=1.22.0
+scipy>=1.9.0
+pillow>=9.0.0
+
+# Speech-to-Text (ASR) Auto-transcription
+# NOTE: For GPU acceleration on NVIDIA RTX (e.g. RTX 4070), install PyTorch with CUDA first:
+# pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124
+torch>=2.0.0
+torchaudio>=2.0.0
+transformers>=4.36.0
+
+# Standalone Desktop Window GUI (Edge WebView2 / WebKit)
+pywebview>=5.0.0

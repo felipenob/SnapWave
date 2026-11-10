@@ -1,0 +1,27 @@
+# Python & Virtual Environment
+.venv/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Application Backups, Autosaves & Packaging
+.autosave/
+.backups/
+*.bak
+*.tmp
+transcript_review_app.zip
+reviewed_test.eaf
+P1_custom_export.srt
+
+# Experiment Session Data (uncomment if you don't want sample data in git)
+# sample_data/
+
+# IDEs & OS
+.vscode/
+.idea/
+.pytest_cache/
+.DS_Store
+Thumbs.db

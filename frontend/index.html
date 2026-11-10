@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnapWave - Multi-Speaker Transcript Review & Alignment Studio</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="logo-group">
+        <span class="app-icon">🎙️</span>
+        <h1 class="app-title">SnapWave</h1>
+        <span class="offline-badge">OFFLINE</span>
+        <span id="autosaveStatus" class="autosave-status" title="Automatic periodic backups active">● Saved</span>
+      </div>
+
+      <div class="session-actions">
+        <!-- Undo / Redo -->
+        <button id="btnUndo" class="btn icon-btn" title="Undo (Ctrl+Z)" disabled>↩️ Undo</button>
+        <button id="btnRedo" class="btn icon-btn" title="Redo (Ctrl+Y)" disabled>↪️ Redo</button>
+
+        <button id="btnToggleAudioMode" class="btn secondary" title="Toggle audio playback mode (M)">
+          <span id="audioModeIcon">🎧</span> <span id="audioModeText">Solo Mode (M)</span>
+        </button>
+
+        <!-- Explicit Save Button for Active Participant -->
+        <button id="btnSaveActive" class="btn success" title="Save active participant SRT (Ctrl+S)">
+          💾 Save <span id="saveActiveTargetLabel">Active .srt</span>
+        </button>
+
+        <!-- Grouped Save / Export Options Dropdown -->
+        <div class="dropdown-wrapper" id="saveDropdownWrapper">
+          <button id="btnMoreSaveOptions" class="btn secondary dropdown-toggle" title="More save and export options">
+            💾 Options ▾
+          </button>
+          <div id="saveOptionsDropdown" class="dropdown-menu hidden">
+            <button id="btnSaveAll" class="dropdown-item">💾 Save All SRTs</button>
+            <button id="btnSaveAs" class="dropdown-item">💾 Save As Copy...</button>
+            <div class="dropdown-divider"></div>
+            <button id="btnExportEaf" class="dropdown-item">📑 Export ELAN (.eaf)</button>
+          </div>
+        </div>
+
+        <button id="btnTopShortcuts" class="btn secondary" title="Customize keyboard shortcuts & guideline tags">
+          ⌨️ Shortcuts
+        </button>
+
+        <button id="btnOpenSettings" class="btn secondary" title="Application & ASR Settings">
+          ⚙️ Settings
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="main-layout">
+      <!-- Left Column: Utterance List & Filtering -->
+      <aside class="sidebar" id="participantSidebar">
+        <!-- Session Folder Selector on Top of Left Panel -->
+        <div class="sidebar-session-selector">
+          <div class="session-path-row">
+            <input type="text" id="sessionDirInput" placeholder="Session folder path..." title="Session folder path" />
+            <button id="btnBrowseFolder" class="btn primary sm" title="Open window to choose session folder">📂 Select</button>
+            <button id="btnLoadSession" class="btn secondary sm" title="Load or reload session">Load</button>
+          </div>
+        </div>
+
+        <div class="sidebar-header">
+          <!-- Participant Tabs -->
+          <div class="participant-tabs" id="participantTabs">
+            <span class="loading-label">No session loaded</span>
+          </div>
+          <div class="list-search">
+            <input type="text" id="filterInput" placeholder="Filter utterances... (/)">
+          </div>
+          <div class="list-stats" id="listStats">
+            0 utterances
+          </div>
+        </div>
+
+        <div class="utterance-list" id="utteranceList">
+          <!-- Populated dynamically -->
+        </div>
+      </aside>
+
+      <!-- Draggable Sidebar Resizer Handle -->
+      <div class="sidebar-resizer" id="sidebarResizer" title="Drag left or right to adjust panel width"></div>
+
+      <!-- Center & Right: Waveform, Snapper & Editor -->
+      <section class="editor-section">
+        <!-- 4-Track Overview Bar -->
+        <div class="multitrack-overview" id="multitrackOverview">
+          <div class="overview-title">Session Activity Overview (4 Channels)</div>
+          <div class="overview-tracks" id="overviewTracks"></div>
+        </div>
+
+        <!-- Waveform Card -->
+        <div class="waveform-card">
+          <div class="waveform-toolbar">
+            <div class="time-readout">
+              <span id="currentTimeDisplay">00:00.000</span> / <span id="totalDurationDisplay">00:00.000</span>
+            </div>
+
+            <div class="zoom-controls">
+              <button id="btnZoomOut" class="btn icon-btn" title="Zoom Out (-)">🔍-</button>
+              <button id="btnZoomIn" class="btn icon-btn" title="Zoom In (+)">🔍+</button>
+            </div>
+
+            <div class="media-seek-controls">
+              <button id="btnSeekBackward" class="btn icon-btn" title="Move Backward 2s (Shift + ArrowLeft)">⏪ 2s</button>
+              <button id="btnSeekForward" class="btn icon-btn" title="Move Forward 2s (Shift + ArrowRight)">2s ⏩</button>
+            </div>
+
+            <div class="autoplay-controls">
+              <button id="btnToggleAutoplay" class="btn icon-btn" title="Toggle automatic playback when navigating utterances">
+                <span id="autoplayIcon">🔇</span> <span id="autoplayText">Auto: Off</span>
+              </button>
+            </div>
+
+            <div class="spectrogram-toggle-controls">
+              <button id="btnToggleSpectrogram" class="btn icon-btn" title="Enable or disable voice spectrogram display">
+                <span id="spectrogramToggleIcon">📊</span> <span id="spectrogramToggleText">Spectrogram: Off</span>
+              </button>
+            </div>
+
+            <div class="volume-controls" title="Playback Volume">
+              <span id="volumeIcon" class="volume-icon">🔊</span>
+              <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="1.0" class="volume-slider" title="Volume Slider" />
+            </div>
+
+            <div class="playback-controls">
+              <label for="speedSelect">Speed:</label>
+              <select id="speedSelect">
+                <option value="1.0">1.0x</option>
+                <option value="1.2" selected>1.2x</option>
+                <option value="1.5">1.5x</option>
+                <option value="1.8">1.8x</option>
+                <option value="2.0">2.0x</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Integrated Voice Spectrogram Canvas (ELAN Style, 0 - 8 kHz) -->
+          <div class="spectrogram-container" id="spectrogramContainer">
+            <canvas id="spectrogramCanvas"></canvas>
+            <div class="freq-axis-overlay">
+              <span class="freq-tag freq-top">8 kHz</span>
+              <span class="freq-tag freq-mid-top">4 kHz</span>
+              <span class="freq-tag freq-mid">2 kHz</span>
+              <span class="freq-tag freq-low">1 kHz</span>
+              <span class="freq-tag freq-bottom">0 Hz</span>
+            </div>
+            <div class="spectrogram-title-tag">Voice Spectrogram (0 – 8 kHz)</div>
+          </div>
+
+          <!-- Main Interactive Waveform Canvas -->
+          <div class="waveform-container" id="waveformContainer">
+            <canvas id="waveformCanvas"></canvas>
+            <div id="playhead" class="playhead"></div>
+            <div id="selectionOverlay" class="selection-overlay">
+              <div class="handle handle-left" id="handleLeft"></div>
+              <div class="handle handle-right" id="handleRight"></div>
+            </div>
+          </div>
+
+          <!-- Horizontal Timeline Scroll Track -->
+          <div class="waveform-scroll-track" title="Scroll across full audio duration">
+            <input type="range" id="waveformScrollbar" min="0" max="1000" value="0" step="1" />
+          </div>
+
+          <!-- Playback & Fast Action Bar -->
+          <div class="action-bar">
+            <div class="primary-actions" id="primaryActionsBar">
+              <button id="btnPlayPause" class="btn primary action-btn" draggable="true" data-action-id="playPause" title="Play/Pause utterance">
+                ▶️ Play (<span class="shortcut-label" data-action="playPause">Tab</span>)
+              </button>
+              <!-- SNAP TO WAVE: ENLARGE (EXPAND OUTWARD) -->
+              <button id="btnSnapEnlarge" class="btn highlight action-btn" draggable="true" data-action-id="snapEnlarge" title="Enlarge annotation bounds outward to soundwave">
+                ⚡ Enlarge (<span class="shortcut-label" data-action="snap">Alt+Q</span>)
+              </button>
+              <!-- SNAP TO WAVE: TRIM (TIGHTEN INWARD) -->
+              <button id="btnSnapTrim" class="btn secondary action-btn" draggable="true" data-action-id="snapTrim" title="Trim annotation bounds inward to primary soundwave burst">
+                ✂️ Trim (<span class="shortcut-label" data-action="snapTrim">Alt+W</span>)
+              </button>
+              <!-- INSERT NEW UTTERANCE -->
+              <button id="btnAddUtterance" class="btn secondary action-btn" draggable="true" data-action-id="addUtterance" title="Insert new annotation at cursor or gap">
+                ➕ Add (<span class="shortcut-label" data-action="addUtterance">Alt+A</span>)
+              </button>
+              <!-- AUTO TRANSCRIBE ACTIVE ANNOTATION -->
+              <button id="btnAutoTranscribe" class="btn highlight action-btn" draggable="true" data-action-id="transcribe" title="Auto-transcribe active audio segment">
+                🎙️ Transcribe (<span class="shortcut-label" data-action="transcribe">Alt+T</span>)
+              </button>
+              <!-- OFFLINE GRAMMAR & CASING CORRECTION -->
+              <button id="btnCorrectGrammar" class="btn secondary action-btn" draggable="true" data-action-id="grammar" title="Correct grammar, casing, contractions and punctuation">
+                ✨ Grammar (<span class="shortcut-label" data-action="grammar">Alt+G</span>)
+              </button>
+              <button id="btnSplitPause" class="btn secondary action-btn" draggable="true" data-action-id="split" title="Split utterance at pause or cursor">
+                ✂️ Split (<span class="shortcut-label" data-action="split">Alt+S</span>)
+              </button>
+              <!-- MERGE WITH NEXT UTTERANCE -->
+              <button id="btnMergeNext" class="btn secondary action-btn" draggable="true" data-action-id="mergeNext" title="Merge active utterance with the next utterance">
+                🔗 Merge Next (<span class="shortcut-label" data-action="mergeNext">Alt+M</span>)
+              </button>
+              <!-- SEARCH MISSING UTTERANCES -->
+              <button id="btnSearchMissing" class="btn highlight action-btn" draggable="true" data-action-id="searchMissing" title="Search unannotated audio gaps for missing speech bursts">
+                🔍 Find missing utterances
+              </button>
+              <button id="btnDeleteUtterance" class="btn danger action-btn" draggable="true" data-action-id="delete" title="Delete current utterance">
+                🗑️ Delete (<span class="shortcut-label" data-action="delete">Alt+Delete</span>)
+              </button>
+            </div>
+
+            <div class="navigation-actions">
+              <button id="btnPrevUtterance" class="btn sm" title="Previous utterance">
+                ◀ Prev (<span class="shortcut-label" data-action="prev">PageUp</span>)
+              </button>
+              <span id="utteranceCounter" class="utterance-counter">0 / 0</span>
+              <button id="btnNextUtterance" class="btn sm" title="Next utterance">
+                Next (<span class="shortcut-label" data-action="next">PageDown</span>) ▶
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Annotation & Guideline Symbols Card -->
+        <div class="editor-card">
+          <div class="editor-header">
+            <div class="segment-meta">
+              <span id="currentAnnoIndex">Utterance #--</span>
+              <span class="badge" id="currentAnnoTimes">00:00.000 ➔ 00:00.000 (0.00s)</span>
+            </div>
+
+            <!-- Guideline Quick-Insert Buttons -->
+            <div class="guideline-buttons">
+              <button class="tag-btn" data-tag="@" title="Backchannel: Obvious agreement">
+                <strong>[@]</strong> Backchannel (<span class="shortcut-label" data-action="tagBackchannel">Alt+B</span>)
+              </button>
+              <button class="tag-btn" data-tag="%" title="Laugh: Standalone separated annotation">
+                <strong>[%]</strong> Laugh (<span class="shortcut-label" data-action="tagLaugh">Alt+L</span>)
+              </button>
+              <button class="tag-btn" data-tag="$" title="Vocal Noise: Yawn, sigh, throat clear, clicks">
+                <strong>[$]</strong> Noise (<span class="shortcut-label" data-action="tagNoise">Alt+N</span>)
+              </button>
+              <button class="tag-btn" data-tag="#" title="Word Disfluency: Cut-off word">
+                <strong>[#]</strong> Cut-off (<span class="shortcut-label" data-action="tagWordDisfluency">Alt+#</span>)
+              </button>
+              <button class="tag-btn" data-tag="…" title="Discontinuity: Sentence break or prolongation">
+                <strong>[…]</strong> Prolong (<span class="shortcut-label" data-action="tagDiscontinuity">Alt+.</span>)
+              </button>
+              <button class="tag-btn" data-tag="^" title="Interjection: Wraps word in ^...^">
+                <strong>[^]</strong> Interject (<span class="shortcut-label" data-action="tagInterjection">Alt+I</span>)
+              </button>
+              <button class="tag-btn" data-tag="&" title="Non-English: Wraps in &...&">
+                <strong>[&]</strong> Non-Eng (<span class="shortcut-label" data-action="tagNonEnglish">Alt+E</span>)
+              </button>
+              <button class="tag-btn" data-tag="-" title="Sound Stutter: Connects syllables with hyphen">
+                <strong>[-]</strong> Stutter (<span class="shortcut-label" data-action="tagStutter">Alt+-</span>)
+              </button>
+              <button class="tag-btn" data-tag="~" title="Inaudible / Unclear token">
+                <strong>[~]</strong> Unclear (<span class="shortcut-label" data-action="tagUnclear">Alt+U</span>)
+              </button>
+            </div>
+          </div>
+
+          <!-- Transcript Input Box -->
+          <div class="editor-body">
+            <textarea id="transcriptInput" rows="3" placeholder="Annotation text... Press Enter to accept and move to next utterance."></textarea>
+          </div>
+        </div>
+
+        <!-- Shortcuts Legend Footer with Customize Button -->
+        <div class="shortcuts-legend">
+          <div class="legend-items" id="legendItems">
+            <div class="legend-item"><kbd id="legendKeyPlay">Tab</kbd> Play/Pause</div>
+            <div class="legend-item"><kbd id="legendKeyNext">PageDown</kbd> Next</div>
+            <div class="legend-item"><kbd id="legendKeyPrev">PageUp</kbd> Prev</div>
+            <div class="legend-item"><kbd>Enter</kbd> Edit / Next</div>
+            <div class="legend-item"><kbd id="legendKeySnap">Alt+Q</kbd> <strong>Enlarge</strong></div>
+            <div class="legend-item"><kbd id="legendKeySnapTrim">Alt+W</kbd> <strong>Trim</strong></div>
+            <div class="legend-item"><kbd id="legendKeyAdd">Alt+A</kbd> Add</div>
+            <div class="legend-item"><kbd id="legendKeyTranscribe">Alt+T</kbd> <strong>Transcribe</strong></div>
+            <div class="legend-item"><kbd id="legendKeyGrammar">Alt+G</kbd> <strong>Grammar</strong></div>
+            <div class="legend-item"><kbd id="legendKeySplit">Alt+S</kbd> Split</div>
+            <div class="legend-item"><kbd id="legendKeyMergeNext">Alt+M</kbd> Merge Next</div>
+            <div class="legend-item"><kbd id="legendKeyDelete">Alt+Delete</kbd> Delete</div>
+            <div class="legend-item"><kbd>Shift+Arrows</kbd> Move 2s</div>
+            <div class="legend-item"><kbd>Ctrl+Z</kbd> Undo</div>
+            <div class="legend-item"><kbd>Ctrl+Y</kbd> Redo</div>
+          </div>
+          <div class="legend-buttons">
+            <button id="btnFooterSettings" class="btn sm secondary" title="Application & ASR Settings">
+              ⚙️ Settings
+            </button>
+            <button id="btnOpenShortcutsModal" class="btn sm highlight" title="Customize keyboard shortcuts">
+              ⌨️ Shortcuts
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Settings Dialog Modal -->
+    <div id="settingsModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>⚙️ Application & ASR Settings</h3>
+          <button class="btn icon-btn modal-close" id="btnCloseSettings">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="settings-form-row">
+            <label for="settingsAsrModel"><strong>ASR Transcription Model:</strong></label>
+            <select id="settingsAsrModel" class="settings-select">
+              <option value="openai/whisper-tiny">OpenAI Whisper Tiny (Fast, Natural Casing & Punctuation)</option>
+              <option value="openai/whisper-base">OpenAI Whisper Base (Higher Capacity, Accurate)</option>
+              <option value="nvidia/parakeet-tdt-0.6b-v2">NVIDIA Parakeet TDT 0.6B v2 (SOTA FastConformer, NeMo/GPU)</option>
+              <option value="nvidia/parakeet-ctc-0.6b">NVIDIA Parakeet CTC 0.6B (FastConformer CTC, Transformers/NeMo)</option>
+              <option value="nvidia/parakeet-ctc-1.1b">NVIDIA Parakeet CTC 1.1B (Large FastConformer, Transformers/NeMo)</option>
+              <option value="facebook/wav2vec2-base-960h">Facebook Wav2Vec2 960h (CTC Acoustic, Uppercase)</option>
+            </select>
+            <p class="modal-help">Used when clicking 🎙️ Transcribe (or pressing Alt+T). Whisper and Parakeet models support natural punctuation and GPU acceleration.</p>
+          </div>
+
+          <div class="settings-form-row" style="margin-top: 16px;">
+            <label><strong>Workspace View Panels:</strong></label>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px; background:var(--bg-input); padding:10px 12px; border-radius:6px; border:1px solid var(--border-color);">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+                <input type="checkbox" id="settingToggleSpectrogram" />
+                <span><strong>Voice Spectrogram</strong> (0 – 8 kHz formant analysis on top of waveform)</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+                <input type="checkbox" id="settingToggleOverview" />
+                <span><strong>Session Activity Overview</strong> (4 synchronized speaker tracks)</span>
+              </label>
+            </div>
+            <p class="modal-help">Toggle panels independently or deactivate all to maximize your workspace.</p>
+          </div>
+
+          <div class="settings-form-row" style="margin-top: 16px;">
+            <label for="settingsSpectrogramColor"><strong>Spectrogram Color Scheme:</strong></label>
+            <select id="settingsSpectrogramColor" class="settings-select">
+              <option value="magma">Voice Magma (Dark background, colorful formants)</option>
+              <option value="bw">Black & White (White background, black energy - Praat/ELAN style)</option>
+            </select>
+            <p class="modal-help">Black & White mode provides an inverted high-contrast voiceprint with white background and energy in black.</p>
+          </div>
+
+          <div class="settings-form-row" style="margin-top: 16px;">
+            <label><strong>Compute Hardware:</strong></label>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+              <span id="settingsDeviceBadge" class="device-badge badge-cpu">💻 CPU</span>
+              <span id="settingsDeviceInfo" style="font-size:12px; color:var(--text-secondary);">PyTorch CPU mode</span>
+            </div>
+            <p class="modal-help">NVIDIA GeForce GTX 1650 (4 GB) detected. If PyTorch with CUDA is installed, it will automatically switch to GPU.</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btnSettingsOpenShortcuts" class="btn secondary sm">⌨️ Customize Keyboard Shortcuts</button>
+          <div style="flex:1"></div>
+          <button id="btnSaveSettings" class="btn primary">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save As Dialog Modal -->
+    <div id="saveAsModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>💾 Save As (Custom Destination)</h3>
+          <button class="btn icon-btn modal-close" id="btnCloseSaveAs">✕</button>
+        </div>
+        <div class="modal-body">
+          <p>Save active participant (<strong id="saveAsParticipantLabel">P1</strong>) to a new file:</p>
+          <input type="text" id="saveAsInput" class="modal-input" placeholder="e.g. P1_cleaned.srt or full path" />
+          <p class="modal-help">If relative, file will be saved in current session directory.</p>
+        </div>
+        <div class="modal-footer">
+          <button id="btnCancelSaveAs" class="btn">Cancel</button>
+          <button id="btnConfirmSaveAs" class="btn success">Save Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Missing Utterances Detection Modal -->
+    <div id="missingUtterancesModal" class="modal-overlay hidden">
+      <div class="modal-card modal-wide modal-resizable">
+        <div class="modal-header">
+          <h3>🔍 Missing Utterances Search (<span id="missingSpeakerLabel">P1.srt</span>)</h3>
+          <button class="btn icon-btn modal-close" id="btnCloseMissingUtterances">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="missing-controls-bar">
+            <span>Scanned unannotated audio gaps across the channel for speech bursts and checked crosstalk.</span>
+            <div style="flex:1"></div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <label for="missingSensitivitySelect" style="font-size:11px; font-weight:600; color:var(--text-muted);">Sensitivity:</label>
+              <select id="missingSensitivitySelect" class="btn sm secondary" style="font-size:11px; padding:3px 6px;">
+                <option value="high_precision" selected>🎯 High Precision (Speech only)</option>
+                <option value="balanced">⚖️ Balanced</option>
+                <option value="sensitive">⚡ Sensitive (Includes whispers)</option>
+              </select>
+            </div>
+            <button id="btnRescanMissing" class="btn sm secondary">🔄 Re-scan Gaps</button>
+          </div>
+          <div class="missing-filter-bar" id="missingFilterBar">
+            <span style="font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase;">Filter:</span>
+            <button class="filter-pill active" id="filterMissingAll" data-filter="all">All (0)</button>
+            <button class="filter-pill" id="filterMissingSpeech" data-filter="speech">🎤 Likely Speech (0)</button>
+            <button class="filter-pill" id="filterMissingBleed" data-filter="bleed">⚠️ Bleed / Crosstalk (0)</button>
+          </div>
+          <div id="missingScanningIndicator" class="missing-status-box hidden">
+            <span class="spinner">⏳</span> Scanning audio gaps and computing multi-channel cross-talk...
+          </div>
+          <div id="missingResultsContainer" class="missing-results-list">
+            <!-- Dynamically populated candidate rows -->
+          </div>
+        </div>
+        <div class="modal-footer" style="gap: 8px;">
+          <button id="btnInsertAllMissing" class="btn highlight sm" disabled>➕ Insert All Likely Speech</button>
+          <div style="flex:1"></div>
+          <button id="btnCloseMissingFooter" class="btn primary">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customize Shortcuts Modal -->
+    <div id="shortcutsModal" class="modal-overlay hidden">
+      <div class="modal-card modal-wide">
+        <div class="modal-header">
+          <h3>⚙️ Customize Keyboard Shortcuts</h3>
+          <button class="btn icon-btn modal-close" id="btnCloseShortcuts">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 12px; color: #93c5fd; line-height: 1.5;">
+            <strong>💡 Browser-Safe Shortcuts:</strong> Shortcuts using <code>Alt</code>, <code>Ctrl</code>, or special keys (e.g. <code>F8</code>, <code>Delete</code>) work <strong>both inside and outside the text field</strong>!
+            <br>
+            <em>Note: Browsers reserve <code>Alt+D</code> for the URL bar and <code>Ctrl+W</code> for closing tabs. We recommend <code>Alt+Shift+D</code> or <code>Alt+Delete</code> for Delete to prevent browser conflicts.</em>
+          </div>
+          <p class="modal-help">Click any box and press your desired key or combination to rebind it.</p>
+          <div class="shortcuts-grid" id="shortcutsGrid">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+        <div class="modal-footer" style="flex-wrap: wrap; gap: 8px;">
+          <button id="btnPresetWorksInText" class="btn sm" title="Sets Alt+Shift shortcuts that work directly while typing in the text field">⚡ Preset: Works While Typing</button>
+          <button id="btnResetShortcuts" class="btn sm">Reset (Single-Key)</button>
+          <div style="flex:1"></div>
+          <button id="btnSaveShortcuts" class="btn primary">Save & Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toastNotification" class="toast hidden"></div>
+  </div>
+
+  <script src="waveform.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
